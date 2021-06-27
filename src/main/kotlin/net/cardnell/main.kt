@@ -2,12 +2,20 @@ package net.cardnell
 
 import com.drew.imaging.ImageMetadataReader
 import com.drew.metadata.Metadata
+import com.drew.metadata.exif.ExifIFD0Directory
 import com.drew.metadata.exif.ExifSubIFDDirectory
 import com.drew.metadata.xmp.XmpDirectory
 import java.io.File
 import java.nio.file.Paths
 import java.time.LocalDateTime
+import java.util.*
 
+enum class Pick(v: Int) {
+    None(0,),
+    Reject(1),
+    Pending(2),
+    Flag(3)
+}
 
 fun main(): Unit {
     //val metadata = ImageMetadataReader.readMetadata(File("D:\\Pictures-Originals\\2012\\2012-06 Family BBQ\\DSC_0524.JPG"))
@@ -19,8 +27,6 @@ fun main(): Unit {
             //}
         }
     }
-    val directory = metadata.getFirstDirectoryOfType<XmpDirectory>(XmpDirectory::class.java)
-    directory.xmpProperties.forEach { t, u -> println("$t = $u")}
 
 //    val yearDirs = Paths.get("D:\Pictures-Originals").toFile().listFiles().filter { it.isDirectory }
 //    yearDirs.forEach { yearDir ->
@@ -58,19 +64,32 @@ fun isFriendOrFamily(picture: File): Boolean {
     return true
 }
 
-fun getRating(): Int {
+fun getRating(metadata: Metadata): Int? {
     //[Exif IFD0] Rating - 3
-    return 1
+    val directory = metadata.getFirstDirectoryOfType<ExifIFD0Directory>(ExifIFD0Directory::class.java)
+
+    // query the tag's value
+    val rating = directory.getString(ExifIFD0Directory.TAG_RATING)
+    return rating?.toInt()
 }
 
-fun getDateTimeOriginal(metadata: Metadata): LocalDateTime {
+fun getPick(metadata: Metadata): Pick {
+    val directory = metadata.getFirstDirectoryOfType<XmpDirectory>(XmpDirectory::class.java)
+    return when (directory.xmpProperties["digikam:Pick"]) {
+        "1" -> Pick.Reject
+        "2" -> Pick.Pending
+        "3" -> Pick.Flag
+        else -> Pick.None
+    }
+}
+
+fun getDateTimeOriginal(metadata: Metadata): Date {
     //[Exif SubIFD] Date/Time Original - 2012:06:16 14:59:34
     // obtain the Exif directory
     val directory = metadata.getFirstDirectoryOfType<ExifSubIFDDirectory>(ExifSubIFDDirectory::class.java)
 
     // query the tag's value
-    val date = directory.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL)
-    return LocalDateTime.now()
+    return directory.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL)
 }
 
 val friendsOrFamily = setOf(
