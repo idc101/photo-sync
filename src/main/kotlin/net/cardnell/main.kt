@@ -18,37 +18,56 @@ enum class Pick(v: Int) {
 }
 
 fun main(): Unit {
-    //val metadata = ImageMetadataReader.readMetadata(File("D:\\Pictures-Originals\\2012\\2012-06 Family BBQ\\DSC_0524.JPG"))
-    val metadata = ImageMetadataReader.readMetadata(File("D:\\Pictures-Originals\\2002\\2002-01 Spring Term 2nd Year\\Image07.jpg"))
-    for (directory in metadata.directories) {
-        for (tag in directory.tags) {
-            //if (tag.description.contains("Mark Bridges")) {
-            System.out.println(tag)
-            //}
-        }
-    }
+    val source = "D:\\Pictures-Originals"
+    val destination = "D:\\Pictures"
 
-//    val yearDirs = Paths.get("D:\Pictures-Originals").toFile().listFiles().filter { it.isDirectory }
-//    yearDirs.forEach { yearDir ->
-//        val picFolders = yearDir.listFiles().filter { it.isDirectory }
-//        picFolders.forEach { picFolder ->
-//            // Firstly check destination and remove
-//
-//            // now sync each file
-//            picFolder.listFiles().filter { it.isFile }.forEach { pictureOriginal ->
-//                val destPicture = getDestPicture(pictureOriginal)
-//                if (!destPicture.exists()) {
-//                    println("Copying $pictureOriginal to $destPicture")
-//                    pictureOriginal.copyTo(destPicture, overwrite = true)
-//
-//                }
-//            }
-//        }
-//    }
+    //checkPictures()
+    syncPictures()
 }
 
-fun getDestPicture(pictureOriginal: File): File {
-    return File(pictureOriginal.toString().replace("Pictures-Originals", "Pictures"))
+fun syncPictures() {
+    walkAlbums { year, albumDir ->
+        val destDir = Paths.get("D:\\Pictures", year, albumDir.name).toFile()
+        syncDir(albumDir, destDir)
+    }
+}
+
+fun walkAlbums(action: (String, File) -> Unit) {
+    val yearDirs = Paths.get("D:\\Pictures-Originals").toFile().listFiles().filter { it.isDirectory }
+    yearDirs.forEach { yearDir ->
+        val albumFolders = yearDir.listFiles().filter { it.isDirectory }
+        albumFolders.forEach { albumFolder ->
+            action(yearDir.name, albumFolder)
+        }
+    }
+}
+
+fun syncDir(sourceDir: File, destDir: File) {
+    val sourceFiles = sourceDir.listFiles().filter { it.isFile }.toSet()
+    val destFiles = destDir.listFiles().filter { it.isFile }.toSet()
+    diffSets(sourceFiles, destFiles).forEach { diff ->
+        when (diff) {
+            is Left -> checkAndCopy(diff.t, destDir)
+            is Right -> delete(diff.t)
+        }
+    }
+}
+
+fun checkAndCopy(sourceFile: File, destDir: File) {
+    if (checkFile(sourceFile)) {
+        println("Copying $sourceFile to $destDir")
+        //sourceFile.copyTo(destDir, overwrite = true)
+    }
+}
+
+fun checkFile(sourceFile: File): Boolean {
+    val metadata = ImageMetadataReader.readMetadata(sourceFile)
+    return getRating(metadata) ?: 0 >= 3 && getPick(metadata) != Pick.Reject
+}
+
+fun delete(file: File) {
+    println("Deleting extra file: $file")
+    //file.delete()
 }
 
 fun isFriendOrFamily(picture: File): Boolean {
@@ -112,3 +131,12 @@ val friendsOrFamily = setOf(
     "Stan Cardnell",
     "Evelyn Cardnell"
 )
+
+fun dumpInfo(file: File) {
+    val metadata = ImageMetadataReader.readMetadata(File("D:\\Pictures-Originals\\2002\\2002-01 Spring Term 2nd Year\\Image07.jpg"))
+    for (directory in metadata.directories) {
+        for (tag in directory.tags) {
+            System.out.println(tag)
+        }
+    }
+}
