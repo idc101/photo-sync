@@ -7,7 +7,6 @@ import com.drew.metadata.exif.ExifSubIFDDirectory
 import com.drew.metadata.xmp.XmpDirectory
 import java.io.File
 import java.nio.file.Paths
-import java.time.LocalDateTime
 import java.util.*
 
 enum class Pick(v: Int) {
@@ -23,6 +22,7 @@ fun main(): Unit {
 
     //checkPictures()
     syncPictures()
+    //syncDir(File("D:\\Pictures-Originals\\2003\\2003-07 My Birthday Cake"), File("D:\\Pictures\\2003\\2003-07 My Birthday Cake"))
 }
 
 fun syncPictures() {
@@ -33,9 +33,9 @@ fun syncPictures() {
 }
 
 fun walkAlbums(action: (String, File) -> Unit) {
-    val yearDirs = Paths.get("D:\\Pictures-Originals").toFile().listFiles().filter { it.isDirectory }
+    val yearDirs = Paths.get("D:\\Pictures-Originals").toFile().listDirectoriesAsSet()
     yearDirs.forEach { yearDir ->
-        val albumFolders = yearDir.listFiles().filter { it.isDirectory }
+        val albumFolders = yearDir.listDirectoriesAsSet().filter { it.isDirectory }
         albumFolders.forEach { albumFolder ->
             action(yearDir.name, albumFolder)
         }
@@ -43,21 +43,34 @@ fun walkAlbums(action: (String, File) -> Unit) {
 }
 
 fun syncDir(sourceDir: File, destDir: File) {
-    val sourceFiles = sourceDir.listFiles().filter { it.isFile }.toSet()
-    val destFiles = destDir.listFiles().filter { it.isFile }.toSet()
-    diffSets(sourceFiles, destFiles).forEach { diff ->
+    val sourceFiles = sourceDir.listFilesAsSet().filter { it.extension.toLowerCase() in listOf("jpg", "jpeg", "png", "heif", "heic") }.toSet()
+    val destFiles = destDir.listFilesAsSet()
+    val source = sourceFiles.map { Pair(it.name.toLowerCase(), it) }.toMap()
+    val dest = destFiles.map { Pair(it.name.toLowerCase(), it) }.toMap()
+    diffSets(source.keys, dest.keys).forEach { diff ->
         when (diff) {
-            is Left -> checkAndCopy(diff.t, destDir)
-            is Right -> delete(diff.t)
+            is Left -> {
+                if (checkFile(source[diff.t]!!)) {
+                    copy(source[diff.t]!!, destDir)
+                } else {
+                    println("Skipping ${source[diff.t]} - Doesn't match filter")
+                }
+            }
+            is Right -> delete(dest[diff.t]!!)
+            is Match -> {
+                if (!checkFile(source[diff.t]!!)) {
+                    delete(dest[diff.t]!!)
+                } else {
+                    println("Skipping ${source[diff.t]} - Matches filter but already in destination")
+                }
+            }
         }
     }
 }
 
-fun checkAndCopy(sourceFile: File, destDir: File) {
-    if (checkFile(sourceFile)) {
-        println("Copying $sourceFile to $destDir")
-        //sourceFile.copyTo(destDir, overwrite = true)
-    }
+fun copy(sourceFile: File, destDir: File) {
+     println("Copying $sourceFile to $destDir")
+     //sourceFile.copyTo(destDir, overwrite = true)
 }
 
 fun checkFile(sourceFile: File): Boolean {
@@ -72,7 +85,7 @@ fun delete(file: File) {
 
 fun isFriendOrFamily(picture: File): Boolean {
     //[IPTC] Keywords - Leanne Cardnell;Holly Cardnell
-    val metadata = ImageMetadataReader.readMetadata(File("D:\\Pictures-Originals\\2003\\2003-04 Good Good Friday\\2002_0115_013939AA.JPG"))
+    val metadata = ImageMetadataReader.readMetadata(picture)
     for (directory in metadata.directories) {
         for (tag in directory.tags) {
             //if (tag.description.contains("Mark Bridges")) {
@@ -88,8 +101,12 @@ fun getRating(metadata: Metadata): Int? {
     val directory = metadata.getFirstDirectoryOfType<ExifIFD0Directory>(ExifIFD0Directory::class.java)
 
     // query the tag's value
-    val rating = directory.getString(ExifIFD0Directory.TAG_RATING)
-    return rating?.toInt()
+    return if (directory != null) {
+        val rating = directory.getString(ExifIFD0Directory.TAG_RATING)
+        rating?.toInt()
+    } else {
+        null
+    }
 }
 
 fun getPick(metadata: Metadata): Pick {
