@@ -20,15 +20,36 @@ fun main(): Unit {
     val source = "D:\\Pictures-Originals"
     val destination = "D:\\Pictures"
 
-    //checkPictures()
-    syncPictures()
-    //syncDir(File("D:\\Pictures-Originals\\2003\\2003-07 My Birthday Cake"), File("D:\\Pictures\\2003\\2003-07 My Birthday Cake"))
+    checkPictures()
+    //syncPictures()
+//    val file = File("D:\\Pictures-Originals\\2013\\2013-09 September\\IMG_1537.JPG")
+//    dumpInfo(file)
+//    val metadata = ImageMetadataReader.readMetadata(file)
+//    val date = getDateTimeOriginal(metadata)
+//    println(date)
 }
 
 fun syncPictures() {
     walkAlbums { year, albumDir ->
         val destDir = Paths.get("D:\\Pictures", year, albumDir.name).toFile()
         syncDir(albumDir, destDir)
+    }
+}
+
+fun checkPictures() {
+    walkAlbums { year, albumDir ->
+        val sourceFiles = albumDir.listFilesAsSet().filter { it.extension.toLowerCase() in listOf("jpg", "jpeg", "png", "heif", "heic") }.toSet()
+        sourceFiles.forEach {
+            try {
+                val metadata = ImageMetadataReader.readMetadata(it)
+                val date = getDateTimeOriginal(metadata)
+                if (date == null) {
+                    println("Date not found: $it")
+                }
+            } catch (ex: Exception) {
+                println("failed to read: $it")
+            }
+        }
     }
 }
 
@@ -119,13 +140,14 @@ fun getPick(metadata: Metadata): Pick {
     }
 }
 
-fun getDateTimeOriginal(metadata: Metadata): Date {
+fun getDateTimeOriginal(metadata: Metadata): Date? {
     //[Exif SubIFD] Date/Time Original - 2012:06:16 14:59:34
     // obtain the Exif directory
-    val directory = metadata.getFirstDirectoryOfType<ExifSubIFDDirectory>(ExifSubIFDDirectory::class.java)
+    val directory =
+        metadata.getDirectoriesOfType<ExifSubIFDDirectory>(ExifSubIFDDirectory::class.java).firstOrNull { it.tagCount > 0 }
 
     // query the tag's value
-    return directory.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL)
+    return directory?.dateOriginal
 }
 
 val friendsOrFamily = setOf(
@@ -150,10 +172,10 @@ val friendsOrFamily = setOf(
 )
 
 fun dumpInfo(file: File) {
-    val metadata = ImageMetadataReader.readMetadata(File("D:\\Pictures-Originals\\2002\\2002-01 Spring Term 2nd Year\\Image07.jpg"))
+    val metadata = ImageMetadataReader.readMetadata(file)
     for (directory in metadata.directories) {
         for (tag in directory.tags) {
-            System.out.println(tag)
+            System.out.println("[${tag.directoryName}] ${tag.tagName} (${tag.tagType}) - ${tag.description}")
         }
     }
 }
