@@ -8,15 +8,18 @@ import java.nio.file.StandardCopyOption
 val dryRun = false
 
 fun main(): Unit {
-    Image.create(File("D:\\Pictures-Originals\\2017\\2017-07 July\\20170721-IMG_6522.PNG")).dumpInfo()
-//    if (check()) {
-//        archiveAndSync()
-//    }
+//    Image.create(File("D:\\Pictures-Originals\\2021\\2021-12-25 Christmas Day\\20211225-IMG_4425.HEIC")).dumpInfo()
+    if (check("2021")) {
+        archiveAndSync("2021")
+    }
+    if (check("2022")) {
+        archiveAndSync("2022")
+    }
 }
 
-fun check(): Boolean {
+fun check(yearFilter: String? = null): Boolean {
     var success = true
-    walkAlbums { year, albumDir ->
+    walkAlbums(yearFilter) { year, albumDir ->
         val sourceFiles = albumDir.listFilesAsSet().filter { it.extension.toLowerCase() in listOf("jpg", "jpeg", "heif", "heic") }.toSet()
         sourceFiles.forEach { file ->
             try {
@@ -35,8 +38,8 @@ fun check(): Boolean {
     return success
 }
 
-fun archiveAndSync() {
-    walkAlbums { year, albumDir ->
+fun archiveAndSync(yearFilter: String? = null) {
+    walkAlbums(yearFilter) { year, albumDir ->
         val sourceFiles = albumDir.listFilesAsSet().filter { it.extension.toLowerCase() in listOf("jpg", "jpeg", "heif", "heic") }.toSet()
         sourceFiles.forEach { file ->
             try {
@@ -59,10 +62,10 @@ fun archiveAndSync() {
     }
 }
 
-fun walkAlbums(action: (String, File) -> Unit) {
+fun walkAlbums(yearFilter: String?, action: (String, File) -> Unit) {
     val yearDirs = Paths.get("D:\\Pictures-Originals").toFile()
         .listDirectoriesAsSet().filter { it.isDirectory && it.name != ".dtrash"}.toSet()
-    yearDirs.forEach { yearDir ->
+    yearDirs.filter { yearFilter == null || it.name == yearFilter }.forEach { yearDir ->
         val albumFolders = yearDir.listDirectoriesAsSet()
         albumFolders.forEach { albumFolder ->
             action(yearDir.name, albumFolder)

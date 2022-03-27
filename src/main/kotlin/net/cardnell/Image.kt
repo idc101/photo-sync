@@ -72,12 +72,16 @@ open class Image(private val sourceFile: File, private val metadata: Metadata) {
 
     open fun getPick(): Pick {
         val directory = metadata.getFirstDirectoryOfType<XmpDirectory>(XmpDirectory::class.java)
-        val pick = directory.xmpProperties["digikam:Pick"] ?: directory.xmpProperties["digiKam:PickLabel"]
-        return when (pick) {
-            "1" -> Pick.Reject
-            "2" -> Pick.Pending
-            "3" -> Pick.Flag
-            else -> Pick.None
+        return if (directory != null) {
+            val pick = directory.xmpProperties["digikam:Pick"] ?: directory.xmpProperties["digiKam:PickLabel"]
+            when (pick) {
+                "1" -> Pick.Reject
+                "2" -> Pick.Pending
+                "3" -> Pick.Flag
+                else -> Pick.None
+            }
+        } else {
+            Pick.None
         }
     }
 
